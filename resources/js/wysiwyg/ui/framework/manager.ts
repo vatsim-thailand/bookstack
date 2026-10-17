@@ -23,6 +23,7 @@ export class EditorUIManager {
     protected contextToolbarDefinitionsByKey: Record<string, EditorContextToolbarDefinition> = {};
     protected activeContextToolbars: EditorContextToolbar[] = [];
     protected selectionChangeHandlers: Set<SelectionChangeHandler> = new Set();
+    protected layoutUpdateHandlers: Set<() => void> = new Set();
     protected domEventAbortController = new AbortController();
     protected teardownCallbacks: (()=>void)[] = [];
 
@@ -30,6 +31,7 @@ export class EditorUIManager {
         this.context = context;
         this.setupEventListeners();
         this.setupEditor(context.editor, context);
+        this.dropdowns.setIsRTL(this.context.manager.getDefaultDirection() === 'rtl');
     }
 
     getContext(): EditorUiContext {
@@ -164,10 +166,24 @@ export class EditorUIManager {
         this.selectionChangeHandlers.delete(handler);
     }
 
+    onLayoutUpdate(handler: () => void): void {
+        this.layoutUpdateHandlers.add(handler);
+    }
+
+    offLayoutUpdate(handler: () => void): void {
+        this.layoutUpdateHandlers.delete(handler);
+    }
+
     triggerLayoutUpdate(): void {
         window.requestAnimationFrame(() => {
+            const toolbarBounds: (DOMRect|null)[] = [];
             for (const toolbar of this.activeContextToolbars) {
-                toolbar.updatePosition();
+                const bounds = toolbar.updatePosition(toolbarBounds);
+                toolbarBounds.push(bounds);
+            }
+
+            for (const handler of this.layoutUpdateHandlers) {
+                handler();
             }
         });
     }
@@ -246,13 +262,15 @@ export class EditorUIManager {
             }
         }
 
+        const toolbarBounds: (DOMRect|null)[] = [];
         for (const [target, contents] of contentByTarget) {
             const toolbar = new EditorContextToolbar(target, contents);
             toolbar.setContext(this.getContext());
             this.activeContextToolbars.push(toolbar);
 
             this.getContext().containerDOM.append(toolbar.getDOMElement());
-            toolbar.updatePosition();
+            const bounds = toolbar.updatePosition(toolbarBounds);
+            toolbarBounds.push(bounds);
         }
     }
 

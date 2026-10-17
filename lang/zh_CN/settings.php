@@ -104,7 +104,7 @@ return [
     'sort_rule_op_chapters_first' => '章节正序',
     'sort_rule_op_chapters_last' => '章节倒序',
     'sorting_page_limits' => '每页显示限制',
-    'sorting_page_limits_desc' => 'Set how many items to show per-page in various lists within the system. Typically a lower amount will be more performant, while a higher amount avoids the need to click through multiple pages. Using a multiple of 6 is recommended.',
+    'sorting_page_limits_desc' => '设置系统内各列表的单页显示数量。通常较少的数据量性能更佳，较多的数量则能减少用户的翻页操作。建议设置为 6 的倍数。',
 
     // Maintenance settings
     'maint' => '维护',
@@ -206,7 +206,9 @@ return [
     'role_asset_users_note' => '从技术上讲，这些权限还将提供对系统中用户和角色的可见性和搜索功能。',
     'role_all' => '全部的',
     'role_own' => '拥有的',
+    'role_permission_aria' => ':action :resource: :value',
     'role_controlled_by_asset' => '由其所在的资源来控制',
+    'role_controlled_by_page_delete' => '受页面删除权限限制',
     'role_save' => '保存角色',
     'role_users' => '此角色的用户',
     'role_users_none' => '目前没有用户被分配到这个角色',
@@ -263,6 +265,9 @@ return [
     'users_mfa_desc' => '设置多重身份认证能增加您账户的安全性。',
     'users_mfa_x_methods' => ':count 个措施已配置|:count 个措施已配置',
     'users_mfa_configure' => '配置安全措施',
+    'users_mfa_reset' => '重置多重身份验证方法',
+    'users_mfa_reset_desc' => '此操作将重置并清除该用户所有已配置的多重身份验证方法。如果多重身份验证是任何角色所要求的，用户在下次登录时将被提示配置新的方法。',
+    'users_mfa_reset_confirm' => '您确定要重置此用户的多重身份验证吗？',
 
     // API Tokens
     'user_api_token_create' => '创建 API 令牌',
@@ -362,7 +367,9 @@ return [
         'ru' => 'Русский',
         'sk' => 'Slovensky',
         'sl' => 'Slovenščina',
+        'sr' => 'Српски',
         'sv' => 'Svenska',
+        'th' => '泰语',
         'tr' => 'Türkçe',
         'uk' => 'Українська',
         'uz' => 'O‘zbekcha',

@@ -4,6 +4,7 @@ namespace Tests\Search;
 
 use BookStack\Activity\Models\Tag;
 use BookStack\Entities\Models\Book;
+use BookStack\Entities\Models\Page;
 use Tests\TestCase;
 
 class EntitySearchTest extends TestCase
@@ -231,6 +232,18 @@ class EntitySearchTest extends TestCase
         $page->save();
         $this->get('/search?term=' . urlencode('danzorbhsing {created_after:2037-01-01}'))->assertSee($page->name);
         $this->get('/search?term=' . urlencode('danzorbhsing {created_before:2037-01-01}'))->assertDontSee($page->name);
+    }
+
+    public function test_search_tags_with_unexpected_numeric_values_does_not_cause_error()
+    {
+        $pageA = $this->entities->page();
+        $pageA->name = 'MyTestPageWithAwkwardNumericTagValue';
+        $pageA->save();
+        $pageA->tags()->save(new Tag(['name' => 'Count', 'value' => '1E999']));
+
+        $resp = $this->asEditor()->get('/search?term=' . urlencode('[Count=1E999]'));
+        $resp->assertStatus(200);
+        $resp->assertSee('MyTestPageWithAwkwardNumericTagValue');
     }
 
     public function test_entity_selector_search()
@@ -485,5 +498,17 @@ class EntitySearchTest extends TestCase
         $resp = $this->asEditor()->get('/search/suggest?term=spaghettisaurusrex');
         $this->withHtml($resp)->assertElementCount('a', 0);
         $resp->assertSee('No items available');
+    }
+
+    public function test_draft_pages_not_visible_to_others_in_results()
+    {
+        $editor = $this->users->editor();
+        $creator = $this->users->newUser();
+        $creator->roles()->sync([$editor->roles()->first()->id]);
+        $this->actingAs($creator);
+        $page = $this->entities->newDraftPage(['name' => 'Editors draft page', 'html' => '<p>My supercool draft page</p>']);
+
+        $resp = $this->actingAs($editor)->get('/search?term=' . urlencode("{type:page} {created_by:{$creator->slug}}"));
+        $resp->assertDontSee('Editors draft page');
     }
 }

@@ -5,6 +5,7 @@ namespace Tests\Exports;
 use BookStack\Entities\Models\Book;
 use BookStack\Entities\Models\Chapter;
 use BookStack\Entities\Models\Page;
+use BookStack\Permissions\Permission;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -165,8 +166,7 @@ class HtmlExportTest extends TestCase
         $storageDisk->delete('uploads/svg_test.svg');
 
         $resp->assertDontSee('http://localhost/uploads/images/gallery/svg_test.svg', false);
-        $resp->assertSee('http://localhost/uploads/svg_test.svg');
-        $resp->assertSee('src="/uploads/svg_test.svg"', false);
+        $resp->assertSee('src="http://localhost/uploads/svg_test.svg"', false);
     }
 
     public function test_page_export_contained_html_does_not_allow_upward_traversal_with_local()
@@ -227,6 +227,20 @@ class HtmlExportTest extends TestCase
         $resp = $this->get($page->getUrl('/export/html'));
         $resp->assertStatus(200);
         $resp->assertDontSee('ExportWizardTheFifth');
+    }
+
+    public function test_page_export_only_includes_revision_count_if_user_has_revision_view_permissions()
+    {
+        $editor = $this->users->editor();
+        $page = $this->entities->page();
+
+        $resp = $this->actingAs($editor)->get($page->getUrl('/export/html'));
+        $resp->assertSee('Revision #');
+
+        $this->permissions->removeUserRolePermissions($editor, [Permission::RevisionViewAll]);
+
+        $resp = $this->actingAs($editor)->get($page->getUrl('/export/html'));
+        $resp->assertDontSee('Revision #');
     }
 
     public function test_html_exports_contain_csp_meta_tag()

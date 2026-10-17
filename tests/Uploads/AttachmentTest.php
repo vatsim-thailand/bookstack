@@ -159,6 +159,38 @@ class AttachmentTest extends TestCase
         $this->files->deleteAllAttachmentFiles();
     }
 
+    public function test_attachment_update_without_permission()
+    {
+        $page = $this->entities->page();
+        $attachment = Attachment::factory()->create(['uploaded_to' => $page->id]);
+
+        $this->permissions->disableEntityInheritedPermissions($page);
+
+        $resp = $this->asViewer()->put("attachments/{$attachment->id}", [
+            'attachment_edit_name' => 'My new attachment name',
+            'attachment_edit_url'  => 'https://test.example.com',
+        ]);
+
+        $this->assertPermissionError($resp);
+    }
+
+    public function test_attachment_update_without_permission_with_validation_errors()
+    {
+        $page = $this->entities->page();
+        /** @var Attachment $attachment */
+        $attachment = Attachment::factory()->create(['uploaded_to' => $page->id]);
+
+        $this->permissions->disableEntityInheritedPermissions($page);
+
+        $resp = $this->asViewer()->put("attachments/{$attachment->id}", [
+            'attachment_edit_name' => '',
+            'attachment_edit_url'  => 'https://test.example.com',
+        ]);
+
+        $this->assertPermissionError($resp);
+        $resp->assertDontSee($attachment->path);
+    }
+
     public function test_file_deletion()
     {
         $page = $this->entities->page();
@@ -242,6 +274,26 @@ class AttachmentTest extends TestCase
         $this->files->deleteAllAttachmentFiles();
     }
 
+    public function test_attachment_edit_form_access_requires_view_permission()
+    {
+        $page = $this->entities->page();
+        /** @var Attachment $attachment */
+        $attachment = Attachment::factory()->create(['uploaded_to' => $page->id]);
+        $editor = $this->users->editor();
+
+        $this->permissions->disableEntityInheritedPermissions($page);
+        $this->permissions->grantUserRolePermissions($editor, [Permission::AttachmentUpdateAll]);
+        $this->permissions->setEntityPermissionsForRole($page, ['update'], $editor->roles()->first());
+
+        $resp = $this->actingAs($editor)->get("/attachments/edit/{$attachment->id}");
+        $this->assertPermissionError($resp);
+
+        $this->permissions->setEntityPermissionsForRole($page, ['view', 'update'], $editor->roles()->first());
+        $resp = $this->actingAs($editor)->get("/attachments/edit/{$attachment->id}");
+        $resp->assertOk();
+        $resp->assertSee($attachment->name);
+    }
+
     public function test_data_and_js_links_cannot_be_attached_to_a_page()
     {
         $page = $this->entities->page();
@@ -280,6 +332,34 @@ class AttachmentTest extends TestCase
             $this->assertDatabaseMissing('attachments', [
                 'path' => $badLink,
             ]);
+        }
+    }
+
+    public function test_existing_data_and_js_links_do_not_render_link()
+    {
+        $this->asAdmin();
+        $page = $this->entities->page();
+        $attachment = Attachment::factory()->create(['uploaded_to' => $page->id]);
+
+        $links = [
+            'javascript:alert("bunny")',
+            ' javascript:alert("bunny")',
+            'JavaScript:alert("bunny")',
+            "\t\n\t\nJavaScript:alert(\"bunny\")",
+            'data:text/html;bunny<a></a>',
+            'Data:text/html;bunny<a></a>',
+            'Data:text/html;bunny<a></a>',
+            'donk\tscript:alert("bunny")',
+            "donk\tscript:alert('bunny')",
+        ];
+
+        foreach ($links as $link) {
+            $attachment->path = $link;
+            $attachment->save();
+
+            $resp = $this->get($page->getUrl());
+            $resp->assertDontSee('bunny', false);
+            $resp->assertSee('#badlink', false);
         }
     }
 

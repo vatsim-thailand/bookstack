@@ -16,6 +16,7 @@ use BookStack\Users\Models\User;
 use BookStack\Util\HtmlContentFilter;
 use BookStack\Util\HtmlContentFilterConfig;
 use BookStack\Util\HtmlDocument;
+use BookStack\Util\HtmlToPlainText;
 use BookStack\Util\WebSafeMimeSniffer;
 use Closure;
 use DOMElement;
@@ -303,8 +304,8 @@ class PageContent
     public function toPlainText(): string
     {
         $html = $this->render(true);
-
-        return html_entity_decode(strip_tags($html));
+        $converter = new HtmlToPlainText();
+        return $converter->convert($html);
     }
 
     /**
@@ -359,7 +360,7 @@ class PageContent
     {
         $contentHash = md5($html);
         $contentId = $this->page->id;
-        $contentTime = $this->page->updated_at?->timestamp ?? time();
+        $contentTime = $this->page->updated_at->timestamp ?? time();
         $appVersion = AppVersion::get();
         $filterConfig = config('app.content_filtering') ?? '';
         return "page-content-cache::{$filterConfig}::{$appVersion}::{$contentId}::{$contentTime}::{$contentHash}";
@@ -420,28 +421,41 @@ class PageContent
      */
     protected function headerNodesToLevelList(DOMNodeList $nodeList): array
     {
-        $tree = collect($nodeList)->map(function (DOMElement $header) {
+        $minLevel = 6;
+
+        $headerDetails = array_map(function (DOMNode $header) use (&$minLevel) {
+            if (!$header instanceof DOMElement) {
+                return null;
+            }
+
             $text = trim(str_replace("\xc2\xa0", ' ', $header->nodeValue));
             $text = mb_substr($text, 0, 100);
 
+            if (empty($text)) {
+                return null;
+            }
+
+            $level = intval(str_replace('h', '', $header->nodeName));
+            if ($level < $minLevel) {
+                $minLevel = $level;
+            }
+
             return [
                 'nodeName' => strtolower($header->nodeName),
-                'level'    => intval(str_replace('h', '', $header->nodeName)),
+                'level'    => $level,
                 'link'     => '#' . $header->getAttribute('id'),
                 'text'     => $text,
             ];
-        })->filter(function ($header) {
-            return mb_strlen($header['text']) > 0;
-        });
+        }, [...$nodeList]);
+
+        $filtered = array_values(array_filter($headerDetails));
 
         // Shift headers if only smaller headers have been used
-        $levelChange = ($tree->pluck('level')->min() - 1);
-        $tree = $tree->map(function ($header) use ($levelChange) {
-            $header['level'] -= ($levelChange);
+        $levelChange = ($minLevel - 1);
+        foreach ($filtered as $index => $header) {
+            $filtered[$index]['level'] -= $levelChange;
+        }
 
-            return $header;
-        });
-
-        return $tree->toArray();
+        return $filtered;
     }
 }
